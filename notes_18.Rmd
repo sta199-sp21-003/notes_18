@@ -1,0 +1,390 @@
+---
+title: "Linear regression I"
+author: ""
+date: ""
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      comment = "#>", highlight = TRUE,
+                      fig.align = "center")
+```
+
+## Main ideas
+
+- Understand the purpose of models
+
+- Understand the language of linear models in R
+
+## Modeling
+
+- We use models to
+  - understand relationships between sets of variables,
+  - assess differences,
+  - make predictions.
+
+Our focus will be on **linear** models but there are many other types.
+
+# Packages
+
+In addition to using the `tidyverse`, we will be 
+using data from the `fivethirtyeight` package with data on candy rankings from 
+this 2017 [article](https://fivethirtyeight.com/videos/the-ultimate-halloween-candy-power-ranking/). 
+The variables in this dataset are discussed in more detail 
+[here](https://github.com/fivethirtyeight/data/tree/master/candy-power-ranking). 
+We'll also be using the `broom` package, which  takes the messy output of 
+built-in functions in R, such as `lm`, and turns them into tidy data frames.
+
+```{r load_packages}
+library(tidyverse)
+library(fivethirtyeight)
+library(broom)
+```
+
+# Notes
+
+## Data exploration
+
+Let's start by looking at the variables in this dataset.
+
+```{r glimpse}
+glimpse(candy_rankings)
+```
+
+Three numerical variables of potential interest in this dataset are the 
+sugar percentile, the unit price percentile, and the percentage of time that 
+the candy bar won against its competitors. Let's look at the distribution of 
+these variables. What units are these variables measured in?
+
+```{r sugar_hist}
+ggplot(data = candy_rankings, aes(x = sugarpercent)) +
+  geom_histogram(binwidth = .10, fill = "darkgreen", color = "grey60") +
+  labs(title = "Distribution of Sugar Percentile", x = "Sugar Percentile", 
+       y = "Count")
+```
+
+```{r price_hist}
+ggplot(data = candy_rankings, aes(x = pricepercent)) +
+  geom_histogram(binwidth = .10, fill = "darkgreen", color = "grey60") +
+  labs(title = "Distribution of Price Percentile", x = "Price Percentile", 
+       y = "Count")
+```
+
+```{r win_hist}
+ggplot(data = candy_rankings, aes(x = winpercent)) +
+  geom_histogram(binwidth = 10, fill = "darkgreen", color = "grey60") +
+  labs(title = "Distribution of Win Percent", x = "Win Percentile", y = "Count")
+```
+
+Let's say you wanted to see if sugary candies are more likely to win. First, 
+we notice that the sugar and price percentiles are on a scale from 0 to 1, 
+while the win percentage variable is on a scale from 0 to 100. Let's change the 
+sugar and price variables to the same scale as win percentage by creating new 
+variables on a 0 to 100 scale to be on the same scale as win percentage. 
+
+```{r mutate_sugar_price}
+candy_rankings <- candy_rankings %>%
+  mutate(sugarpercent100 = sugarpercent * 100,
+         pricepercent100 = pricepercent * 100)
+```
+
+```{r visualizing_model}
+ggplot(data = candy_rankings, aes(x = sugarpercent100, y = winpercent)) + 
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title= "Do Sugary Candies Win More Often?", x = "Sugar Percentile", 
+       y =  "Win Percentage")
+```
+
+*How would you characterize the relationship here? *
+
+## Regression fundamentals
+
+### Regression terminology
+
+- **Response variable**: variable whose behavior or variation you are trying to 
+  understand, on the y-axis. Also called the dependent variable.
+
+- **Explanatory variable(s)**: variables that you want to use to explain the 
+  variation in the response, on the x-axis. Also called independent variables, 
+  predictors, or features.
+
+- **Predicted value**: a value that is output from a model given a set of 
+  inputs.
+  - The model function gives the typical value of the response variable while
+    conditioning on the explanatory variables (what does this mean?)
+
+- **Residuals**: the difference for each case and its predicted value
+  - Residual = Observed value - Predicted value
+  - Tells how far above/below the model function each case is
+
+**Question**: What does a negative residual mean? Which candies on the above
+plot have have negative residuals, those below or above the line?
+
+
+```{r residuals}
+ggplot(data = candy_rankings, aes(x = sugarpercent100, y = winpercent)) + 
+  labs(title = "Do Sugary Candies Win More Often?", x = "Sugar Percentile", y = 
+         "Win Percentage") + 
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, col = "blue", lty = 1, lwd = 1) + 
+  annotate(geom = "segment", x = 73.2, y = 66.9, xend = 73.2, yend = 53.38, 
+           color = "red", alpha = 0.5) +
+  annotate(geom = "segment", x = 0, xend = 73.2, y = 66.9, yend = 66.9, 
+           color = "red", lty = 2) +
+  annotate(geom = "segment", x = 0, xend = 73.2, y = 53.38, yend = 53.38, 
+           color = "red", lty = 2) +
+  annotate(geom = "point", x = 73.2, y = 66.9, color = "red", shape = 1, 
+           size = 4) +
+  annotate("text", x = 73.2, y = 70, label = "66.9 - 53.4 = 13.5", 
+           color = "red", size = 4)
+```
+
+### Models in general - upsides and downsides
+
+- Models can sometimes reveal patterns that are not evident in a graph of the
+  data. This is a great advantage of modeling over simple visual inspection of
+  data. 
+
+- There is a real risk, however, that a model is imposing structure that is
+  not really there on the scatter of data, just as people imagine animal shapes 
+  in the stars. A skeptical approach is always warranted.
+
+### Variation in the model
+
+- This is just as important as the model, if not more!
+
+- Statistics is the explanation of variation in the context of what remains 
+  unexplained.
+
+- The scatter suggests that there might be other factors that account for large 
+  parts of candy win percentage variability, or perhaps just that randomness 
+  plays a big role.
+
+- Adding more explanatory variables to a model can sometimes usefully reduce 
+  the size of the scatter around the model. (We'll talk more about this later.)
+
+### How do we use models?
+
+1. Explanation: Characterize the relationship between *y* and *x* via slopes 
+   for numerical explanatory variables or differences for categorical 
+   explanatory variables.
+
+2. Prediction: Plug in *x*, get the predicted *y*.
+
+### The linear model with a single predictor
+
+- We're interested in the $\beta_0$ (population parameter for the intercept)
+  and the $\beta_1$ (population parameter for the slope) in the following model:
+
+$$ {y} = \beta_0 + \beta_1x + \epsilon $$
+
+Unfortunately, we can't get these values. So, we use sample statistics to 
+estimate them:
+
+$$ \hat{y} = b_0 + b_1x $$
+
+The regression line minimizes the sum of squared residuals.
+
+- **Residuals**: $e_i = y_i - \hat{y}_i$,
+
+- The regression line minimizes $\sum_{i = 1}^n e_i^2$.
+
+- Equivalently, minimizing $\sum_{i = 1}^n [y_i - (b_0 + b_1x_i)]^2$
+
+- **Question**: Why do we minimize the *squares* of the residuals?
+
+## Example - continuous predictor
+
+The `broom` package will allow us to neatly format our regression results.
+
+- `tidy()`: constructs a tidy data frame summarizing model's statistical 
+  findings
+
+- `glance()`: constructs a concise one-row summary of the model
+
+- `augment()`: adds columns (e.g. predictions, residuals) to the original data 
+  that was modeled
+
+Let's now return to our earlier question, do sugary candies win more often?
+
+```{r sugar_model}
+
+
+```
+
+$$\widehat{WinPercent} = 44.6 + 0.12~SugarPercentile$$
+
+- Slope: for each additional percentile of sugar, the win percentage is 
+  expected to be higher, on average, by 0.12 percentage points.
+
+- **Question**: Why is it important to know what units the variable is measured 
+  in here? Why did we change the scale of percentile here earlier? 
+  
+- Intercept: candies that are in the 0th percentile for sugar content are 
+  expected to win 44.6 percent of the time, on average.
+
+    - Does this make sense?
+
+Let's visualize the residuals.
+
+```{r residuals_sugar_model}
+sugarwins %>% 
+  augment() %>% 
+  ggplot(mapping = aes(x = sugarpercent100, y = winpercent)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  geom_point(mapping = aes(y = .fitted)) +
+  geom_segment(mapping = aes(xend = sugarpercent100, yend = .fitted), 
+               alpha = 0.4, color="red") +
+  ylim(0, 100) +
+  labs(x = "Sugar percentage", y = "Win percentage") +
+  theme_bw()
+```
+
+### Properties of the least squares regression line
+
+- The estimate for the slope, $b_1$, has the same sign as the correlation 
+  between the two variables.
+
+- The regression line goes through the center of mass point, the coordinates 
+  corresponding to average $x$ and average $y$: $(\bar{x}, \bar{y})$
+
+- The sum of the residuals is zero: $\sum_{i = 1}^n e_i = 0$.
+
+- The residuals and $x$ values are uncorrelated.
+
+## Example - categorical predictor
+
+Let's run a model with the chocolate variable.
+
+```{r chocolate_model}
+
+```
+
+Our chocolate variable has two categories: chocolate and not chocolate. 
+Predictors such as this are known as **dummy variables** and are typically 
+coded as "1" (if true) and "0" (if false).
+
+- **Slope:** Candies with chocolate are expected, on average,
+  to have a winning percentage 18.8 percentage points higher than candies that 
+  don't have chocolate.
+    - Compares baseline level (`chocolate = 0`) to other level (`chocolate = 1`)
+
+- **Intercept:** Candies that don't have chocolate are expected, on average, 
+  to win 42.1 percent of the time. 
+
+Consider a categorical variable with more than two levels.
+
+```{r mutate_cpa}
+candy_rankings <- candy_rankings %>%
+   mutate(cpa = 
+            case_when(chocolate == 1 & peanutyalmondy == 0 ~ "chocolate",
+                      chocolate == 1 & peanutyalmondy == 1 ~ "both", 
+                      chocolate == 0 & peanutyalmondy == 1 ~ "peanut_almond",
+                      chocolate == 0 & peanutyalmondy == 0 ~ "neither"))
+```
+
+```{r cpa_model}
+
+```
+
+Each coefficient describes the expected difference between combinations of 
+chocolate in that particular candy compared to the baseline level.
+
+**Question**: Notice here that we have three variables in the model. Why don't 
+we have four since there are four possibilities?
+
+
+## Prediction with models
+
+Does the number of ingredients in a candy bar make it do better? Let's create 
+a variable measuring the number of ingredients and see how well it does.
+
+```{r mutate_ingredients}
+candy_rankings <- candy_rankings %>%
+  mutate(number_ingredients = chocolate + fruity + caramel + peanutyalmondy +
+           nougat + crispedricewafer)
+```
+
+```{r ingredients_model}
+ingredients_model <- lm(winpercent ~ number_ingredients, data = candy_rankings)
+tidy(ingredients_model)
+```
+
+On average, what percentage of the time would you expect a candy bar with four 
+ingredients to win?
+
+$$\widehat{WinPercentage} = 35.5 + 10.7~Ingredients_{number}$$
+
+```{r prediction_ingredients_model}
+
+
+```
+
+"On average, we expect candies with four ingredients to win 78.5 percent of the 
+time."
+
+Warning: We "expect" this to happen, but there will be some variability. 
+(We'll learn about measuring the variability around the prediction later.)
+
+On average, how often would you expect a candy with all seven ingredients to 
+win? Is this realistic? Do any bars like this actually exist in the data?
+
+```{r prediction_extrapolation}
+
+
+```
+
+### Extrapolation
+
+Applying a model estimate to values outside of the realm of the original data 
+is called extrapolation. Generally, a linear model is only an approximation of 
+the real relationship between two variables. If we extrapolate, we are making 
+an unreliable bet that the approximate linear relationship will be valid in 
+places where it has not been analyzed.
+
+## Practice
+
+1. Do you get your money's worth when buying expensive candy? First, use 
+   `ggplot` to visualize the relationship between cost percentile and win 
+   percentage as we did for sugar percentile and win percentage.
+
+```{r practice_1_viz}
+
+
+```
+
+Fit a linear model with win percentage as your response variable and cost 
+percentile as your dependent variable. Interpret the slope and intercept
+terms.
+
+```{r practice_1_lm}
+
+
+```
+
+**Interpretation**: 
+
+2. Consider three new candies that fall in the 40th, 55th, and 85th percentiles.
+   Predict their win percentage using your model from above.
+   
+```{r practice_2}
+
+```
+
+3. How popular are chocolates that have caramel? Fit a linear model with caramel 
+   as the explanatory variable and win percentage as the response variable.
+
+```{r practice_3}
+
+
+```
+
+## Additional Resources
+
+1. [https://r4ds.had.co.nz/model-basics.html](R for Data Science)
+   
