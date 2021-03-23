@@ -1,6 +1,6 @@
 # STA 199: Linear regression I
 
-**Date**: Wednesday, March 23<br>
+**Date**: Wednesday, March 24<br>
 
 ## Learning objectives
 
