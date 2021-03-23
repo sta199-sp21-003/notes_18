@@ -10,4 +10,4 @@
   
 ## Additional Resources
 
-1. [https://r4ds.had.co.nz/model-basics.html](R for Data Science)
+1. https://r4ds.had.co.nz/model-basics.html
